@@ -23,7 +23,8 @@ export function AppProvider({children}:{children:React.ReactNode}) {
   const hydrated=useRef(false),maintenance=useRef(false);
   const persist=async()=>{if(!hydrated.current||maintenance.current)return;try {await saveSnapshot(state.current);}catch(e){setError(`记录保存失败：${e instanceof Error?e.message:'存储不可用'}`);}};
   useEffect(()=>{let mounted=true; (async()=>{try {const snapshot=await loadSnapshot();const key=await loadKey(snapshot.settings.baseUrl);if(!mounted)return;state.current=snapshot;setSettings(snapshot.settings);setConversations(snapshot.conversations);setActiveId(snapshot.activeId);setApiKey(key);hydrated.current=true;setReady(true);}catch(e){if(mounted)setError(`无法读取本地数据：${e instanceof Error?e.message:'未知错误'}`);}})();return()=>{mounted=false;hydrated.current=false;control.current?.abort();};},[]);
-  useEffect(()=>{if(!ready)return;if(timer.current)clearTimeout(timer.current);timer.current=setTimeout(()=>{void persist();},350);return()=>{if(timer.current)clearTimeout(timer.current);};},[settings,conversations,activeId,ready]);
+  useEffect(()=>{if(!ready||timer.current)return;timer.current=setTimeout(()=>{timer.current=null;void persist();},350);},[settings,conversations,activeId,ready]);
+  useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);},[]);
   useEffect(()=>{const subscription=AppState.addEventListener('change',next=>{if(next==='background'){background.current=true;control.current?.abort();void persist();}else if(next==='active'){background.current=false;}});return()=>subscription.remove();},[]);
 
   function updateConversation(id:string,change:(c:Conversation)=>Conversation) {
@@ -72,7 +73,7 @@ export function AppProvider({children}:{children:React.ReactNode}) {
     renameConversation:(id,title)=>{if(title.trim())updateConversation(id,c=>({...c,title:title.trim().slice(0,80)}));},
     addAttachment:a=>{if(maintenance.current)throw new Error('正在清理数据，请稍后再添加附件');setDraftAttachments(previous=>[...previous.filter(item=>item.id!==a.id),a]);setMask(null);},
     removeAttachment:id=>{const removed=draftAttachments.find(a=>a.id===id);setDraftAttachments(previous=>previous.filter(a=>a.id!==id));setMask(null);if(removed&&!state.current.conversations.some(c=>c.messages.some(m=>m.attachments.some(a=>a.uri===removed.uri))))void clearAttachmentFiles([removed.uri,...(mask?[mask.uri]:[])]).catch(e=>setError(String(e)));},setMask,
-    clearHistory:async()=>{if(control.current||maintenance.current)throw new Error('请先等待当前操作完成');maintenance.current=true;if(timer.current)clearTimeout(timer.current);const previous=state.current;const uris=[...previous.conversations.flatMap(c=>c.messages.flatMap(m=>m.attachments)),...draftAttachments,...(mask?[mask]:[])].map(a=>a.uri);const cleared={...previous,conversations:[],activeId:null};try{await saveSnapshot(cleared);state.current=cleared;setConversations([]);setActiveId(null);setDraftAttachments([]);setMask(null);await clearAttachmentFiles(uris);}finally{maintenance.current=false;}}
+    clearHistory:async()=>{if(control.current||maintenance.current)throw new Error('请先等待当前操作完成');maintenance.current=true;if(timer.current)clearTimeout(timer.current);timer.current=null;const previous=state.current;const uris=[...previous.conversations.flatMap(c=>c.messages.flatMap(m=>m.attachments)),...draftAttachments,...(mask?[mask]:[])].map(a=>a.uri);const cleared={...previous,conversations:[],activeId:null};try{await saveSnapshot(cleared);state.current=cleared;setConversations([]);setActiveId(null);setDraftAttachments([]);setMask(null);await clearAttachmentFiles(uris);}finally{maintenance.current=false;}}
   };
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

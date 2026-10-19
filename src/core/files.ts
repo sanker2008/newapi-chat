@@ -67,7 +67,7 @@ export async function pickImage(camera=false): Promise<Attachment|null> {
   let uri=normalized.uri;
   if(Platform.OS==='web') uri=await asDataUrl(await (await fetch(uri)).blob());
   else {uri=`${await attachmentDirectory()}${id}.png`;await FS.copyAsync({from:normalized.uri,to:uri});}
-  return {id,name:source.fileName||'参考图片.png',uri,mime:'image/png',kind:'image',width:normalized.width,height:normalized.height,createdAt:Date.now()};
+  return {id,name:source.fileName?source.fileName.replace(/\.[^.]+$/, '')+'.png':'参考图片.png',uri,mime:'image/png',kind:'image',width:normalized.width,height:normalized.height,createdAt:Date.now()};
 }
 export async function saveToGallery(a:Attachment):Promise<void> {
   if(Platform.OS==='web') {const link=document.createElement('a');link.href=a.uri;link.download=`${a.name}.png`;link.click();return;}

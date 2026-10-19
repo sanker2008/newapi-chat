@@ -15,12 +15,18 @@ concurrency:
 
 jobs:
   apk:
+    name: APK (${{ matrix.abi }})
     runs-on: ubuntu-latest
     timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a]
     env:
       CI: '1'
       NODE_OPTIONS: --max-old-space-size=4096
       GRADLE_OPTS: -Dorg.gradle.daemon=false
+      APK_ARCH: ${{ matrix.abi }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,7 +57,7 @@ jobs:
           chmod +x gradlew
           ./gradlew :app:assembleRelease --no-daemon --max-workers=2 \
             -Pandroid.compileSdkVersion=36 -Pandroid.targetSdkVersion=36 -Pandroid.buildToolsVersion=36.0.0 \
-            -PreactNativeArchitectures=arm64-v8a,x86_64 \
+            -PreactNativeArchitectures="$APK_ARCH" \
             -Pandroid.enableMinifyInReleaseBuilds=false \
             -Pandroid.enableShrinkResourcesInReleaseBuilds=false \
             -Pkotlin.compiler.execution.strategy=in-process \
@@ -59,15 +65,24 @@ jobs:
       - name: Verify APK and checksum
         run: |
           mkdir -p artifacts
-          cp android/app/build/outputs/apk/release/app-release.apk artifacts/ants-chat-1.0.0-test.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose artifacts/ants-chat-1.0.0-test.apk
-          sha256sum artifacts/ants-chat-1.0.0-test.apk > artifacts/SHA256SUMS.txt
-          printf 'Commit: %s\nVersion: 1.0.0\nSigning: Android debug/test key (NOT a store release)\nArchitectures: arm64-v8a,x86_64\nMetro required: no\n' "$GITHUB_SHA" > artifacts/BUILD-INFO.txt
+          cp android/app/build/outputs/apk/release/app-release.apk "artifacts/ants-chat-1.0.0-$APK_ARCH-test.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "artifacts/ants-chat-1.0.0-$APK_ARCH-test.apk"
+          python - <<'PY'
+          import os, zipfile
+          arch = os.environ['APK_ARCH']
+          with zipfile.ZipFile(f'artifacts/ants-chat-1.0.0-{arch}-test.apk') as apk:
+              arches = {name.split('/')[1] for name in apk.namelist() if name.startswith('lib/') and name.endswith('.so')}
+              assert arches == {arch}, f'Expected only {arch}, got {arches}'
+              assert 'assets/index.android.bundle' in apk.namelist(), 'Missing standalone JS bundle'
+          print(f'Verified single-ABI standalone APK: {arch}')
+          PY
+          (cd artifacts && sha256sum *.apk > SHA256SUMS.txt)
+          printf 'Commit: %s\nVersion: 1.0.0\nSigning: Android debug/test key (NOT a store release)\nArchitecture: %s\nMetro required: no\n' "$GITHUB_SHA" "$APK_ARCH" > artifacts/BUILD-INFO.txt
           echo '### Ants Chat 1.0.0 测试 APK' >> "$GITHUB_STEP_SUMMARY"
           echo '包含 JS，可独立运行；使用 Android 测试签名，不能直接用于正式上架。下载下方 APK artifact。真实 API 需要在 App 内自行配置。' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
-          name: ants-chat-1.0.0-test-apk
+          name: ants-chat-1.0.0-${{ matrix.abi }}-test-apk
           path: artifacts/
           retention-days: 14
           if-no-files-found: error
