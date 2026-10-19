@@ -43,6 +43,8 @@ test('models GET is normalized and does not invent capabilities', async () => {
 
 test('generates then edits the actual saved attachment across model rounds', async () => {
   const run = input();
+  // Old persisted settings must not force hidden output options.
+  Object.assign(run.value.settings, { imageSize: '1024x1024', imageQuality: 'high' });
   let chat = 0, generations = 0, edits = 0;
   network = async (url, options) => {
     if (url.endsWith('/chat/completions')) {
@@ -51,8 +53,8 @@ test('generates then edits the actual saved attachment across model rounds', asy
       if (chat === 2) { assert.match(options.body, /saved-1/); return call('edit_image', { imageId: 'saved-1', prompt: 'make it blue' }, 'call2'); }
       assert.match(options.body, /saved-2/); return reply('完成');
     }
-    if (url.endsWith('/images/generations')) { generations++; return json({ data: [{ b64_json: 'aGVsbG8=' }] }); }
-    if (url.endsWith('/images/edits')) { edits++; assert.ok(options.body instanceof FormData); return json({ data: [{ b64_json: 'aGVsbG8=' }] }); }
+    if (url.endsWith('/images/generations')) { generations++; const body = JSON.parse(options.body); assert.equal(body.size, undefined); assert.equal(body.quality, undefined); return json({ data: [{ b64_json: 'aGVsbG8=' }] }); }
+    if (url.endsWith('/images/edits')) { edits++; assert.ok(options.body instanceof FormData); assert.equal(options.body.has('size'), false); assert.equal(options.body.has('quality'), false); return json({ data: [{ b64_json: 'aGVsbG8=' }] }); }
     throw new Error(url);
   };
   run.value.settings.imageEditingEnabled = true;

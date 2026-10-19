@@ -1,4 +1,4 @@
-# Ants Chat
+# PTAH
 
 - 用户沟通使用中文。
 - Android 优先的 Expo / React Native 应用，用户自行配置 New API 地址与 Key，无业务后端。

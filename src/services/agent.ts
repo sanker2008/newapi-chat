@@ -90,8 +90,6 @@ async function draw(session: Session, prompt: string, source?: Attachment): Prom
   if (session.images >= MAX_IMAGES) throw new Error('已达到本次任务 2 次绘图尝试上限（含失败或结果未知的请求）');
   assertActive(input.signal);
   const params: Record<string, unknown> = { model: settings.imageModel.trim(), prompt, n: 1 };
-  if (settings.imageSize.trim() && settings.imageSize !== 'auto') params.size = settings.imageSize;
-  if (settings.imageQuality.trim() && settings.imageQuality !== 'auto') params.quality = settings.imageQuality;
   let form: FormData | undefined;
   if (source) {
     form = new FormData();

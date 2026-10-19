@@ -44,3 +44,6 @@ artifacts/
 # generated native folders
 /ios
 /android
+
+# Local browser automation traces
+.playwright-mcp/

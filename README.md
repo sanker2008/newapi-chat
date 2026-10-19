@@ -1,4 +1,4 @@
-# Ants Chat
+# PTAH
 
 Android 优先的个人 New API 对话与图片创作应用。React Native + Expo 58 + TypeScript；纯客户端，无业务后端。用户自行填写服务地址和 Key。
 
@@ -12,13 +12,13 @@ Android 优先的个人 New API 对话与图片创作应用。React Native + Exp
 
 ## GitHub Actions 打包（默认方式）
 
-仓库 **Actions → Android APK → Run workflow**。推送 `main` 的代码修改也会触发。
+仓库 **Actions → Android APK → Run workflow**。推送 `main` 的代码修改或 `v*` tag 也会触发。
 
 流程在 GitHub 执行 `npm ci`、类型检查、测试、Expo prebuild、Android SDK 安装和 Gradle 编译，本地无需构建或安装 SDK。
 
-成功后分别下载 `ants-chat-1.0.0-arm64-v8a-test-apk` 或 `ants-chat-1.0.0-armeabi-v7a-test-apk` artifact，包含：
+成功后分别下载 `ptah-1.0.0-arm64-v8a-test-apk` 或 `ptah-1.0.0-armeabi-v7a-test-apk` artifact，包含：
 
-- `ants-chat-1.0.0-arm64-v8a-test.apk` 或 `ants-chat-1.0.0-armeabi-v7a-test.apk`：独立架构测试包，包含 JS，安装后不依赖 Metro。
+- `ptah-1.0.0-arm64-v8a-test.apk` 或 `ptah-1.0.0-armeabi-v7a-test.apk`：独立架构测试包，包含 JS，安装后不依赖 Metro。
 - `SHA256SUMS.txt`、`BUILD-INFO.txt`：校验值及对应提交。
 
 **此流程使用模板的 Android 测试签名，不是正式上架签名。** 首版版本固定为 `1.0.0`。后续正式发布需配置独立发布密钥和上架流程；不要把 API Key 或真实签名文件提交到仓库。未配置自动发布 Release。

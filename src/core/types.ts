@@ -3,7 +3,7 @@ export type Attachment = { id: string; name: string; uri: string; mime: string; 
 export type Step = { id: string; name: string; status: 'running' | 'completed' | 'failed'; detail?: string };
 export type Message = { id: string; role: 'user' | 'assistant'; text: string; attachments: Attachment[]; steps?: Step[]; status?: RunStatus; createdAt: number; usage?: { input: number; output: number } };
 export type Conversation = { id: string; title: string; messages: Message[]; updatedAt: number };
-export type ProviderSettings = { baseUrl: string; chatModel: string; imageModel: string; searchModel: string; searchEnabled: boolean; visionEnabled: boolean; imageEditingEnabled: boolean; maskEnabled: boolean; imageSize: string; imageQuality: string };
-export const defaultSettings: ProviderSettings = { baseUrl: '', chatModel: '', imageModel: '', searchModel: '', searchEnabled: false, visionEnabled: false, imageEditingEnabled: false, maskEnabled: false, imageSize: '1024x1024', imageQuality: 'auto' };
+export type ProviderSettings = { baseUrl: string; chatModel: string; imageModel: string; searchModel: string; searchEnabled: boolean; visionEnabled: boolean; imageEditingEnabled: boolean; maskEnabled: boolean };
+export const defaultSettings: ProviderSettings = { baseUrl: '', chatModel: '', imageModel: '', searchModel: '', searchEnabled: false, visionEnabled: false, imageEditingEnabled: false, maskEnabled: false };
 export type RunInput = { settings: ProviderSettings; apiKey: string; messages: Message[]; attachments: Attachment[]; mask?: Attachment; mode: 'agent' | 'chat' | 'image'; signal: AbortSignal; onText: (text: string) => void; onStep: (step: Step) => void; onImage: (image: Attachment) => void; onUsage?: (usage: { input: number; output: number }) => void };
 export function uid(): string { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`; }

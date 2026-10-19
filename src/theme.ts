@@ -1,1 +1,1 @@
-export const colors = { bg: '#F8F7F3', paper: '#FFFFFF', ink: '#292824', muted: '#85837B', faint: '#EEECE6', orange: '#D96735', orangeSoft: '#F9EDE5', green: '#5A7864', red: '#AE4940' };
+export const colors = { bg: '#FAFBFC', paper: '#FFFFFF', ink: '#191C20', muted: '#697380', faint: '#F0F2F5', accent: '#5675A6', accentSoft: '#EAF0F8', green: '#527263', red: '#B04444', scrim: '#191C2070' };
