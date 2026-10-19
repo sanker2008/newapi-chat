@@ -41,5 +41,12 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test src/services/*.test.cjs src/services/*.test.mjs src/core/*.test.cjs"
   },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [".*"]
+      }
+    }
+  },
   "private": true
 }
