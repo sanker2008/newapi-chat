@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ants-chat",
+    "name": "Ants Chat",
     "slug": "ants-chat",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,15 +11,44 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F5F3EE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.ants.chat",
+      "allowBackup": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "scheme": "antschat",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "选择图片作为参考图进行创作",
+          "cameraPermission": "拍摄图片用于对话和编辑",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "访问创作图片",
+          "savePhotosPermission": "将创作保存到相册",
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ],
+      "expo-sharing",
+      "expo-image"
+    ]
   }
 }

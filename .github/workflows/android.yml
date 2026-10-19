@@ -1,0 +1,70 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: ['**/*.md']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      CI: '1'
+      NODE_OPTIONS: --max-old-space-size=4096
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Type check
+        run: npm run typecheck
+      - name: Test protocols and persistence
+        run: npm test
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --no-install
+      - name: Install Android SDK for Expo 58
+        run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+      - name: Build standalone test APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=2 \
+            -PreactNativeArchitectures=arm64-v8a,x86_64 \
+            -Pandroid.enableMinifyInReleaseBuilds=false \
+            -Pandroid.enableShrinkResourcesInReleaseBuilds=false \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m'
+      - name: Verify APK and checksum
+        run: |
+          mkdir -p artifacts
+          cp android/app/build/outputs/apk/release/app-release.apk artifacts/ants-chat-1.0.0-test.apk
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose artifacts/ants-chat-1.0.0-test.apk
+          sha256sum artifacts/ants-chat-1.0.0-test.apk > artifacts/SHA256SUMS.txt
+          printf 'Commit: %s\nVersion: 1.0.0\nSigning: Android debug/test key (NOT a store release)\nArchitectures: arm64-v8a,x86_64\nMetro required: no\n' "$GITHUB_SHA" > artifacts/BUILD-INFO.txt
+          echo '### Ants Chat 1.0.0 测试 APK' >> "$GITHUB_STEP_SUMMARY"
+          echo '包含 JS，可独立运行；使用 Android 测试签名，不能直接用于正式上架。下载下方 APK artifact。真实 API 需要在 App 内自行配置。' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ants-chat-1.0.0-test-apk
+          path: artifacts/
+          retention-days: 14
+          if-no-files-found: error
