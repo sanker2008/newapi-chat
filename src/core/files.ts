@@ -2,7 +2,7 @@ import { Image, Platform } from 'react-native';
 import * as FS from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Manipulator from 'expo-image-manipulator';
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Sharing from 'expo-sharing';
 import { Attachment, uid } from './types';
 
