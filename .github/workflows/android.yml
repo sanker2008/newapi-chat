@@ -47,6 +47,8 @@ jobs:
         run: npm run typecheck
       - name: Test protocols and persistence
         run: npm test
+      - name: Check Android JavaScript bundle
+        run: npx expo export --platform android --output-dir .ci-bundle --max-workers 2
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
       - name: Install available Android SDK
@@ -61,6 +63,7 @@ jobs:
             -Pandroid.enableMinifyInReleaseBuilds=false \
             -Pandroid.enableShrinkResourcesInReleaseBuilds=false \
             -Pkotlin.compiler.execution.strategy=in-process \
+            -Dorg.gradle.caching=true \
             '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m'
       - name: Verify APK and checksum
         run: |

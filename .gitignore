@@ -36,6 +36,7 @@ yarn-error.*
 artifacts/
 *.log
 .tmp/
+.ci-bundle/
 
 # typescript
 *.tsbuildinfo
