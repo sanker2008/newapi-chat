@@ -7,15 +7,16 @@
 - TypeScript 检查通过。
 - 24 项自动测试通过：SSE 拆包、工具参数完整性、工具/附件白名单、预算限制、取消、错误脱敏、无自动重发、蒙版可选及来源尺寸绑定、重复调用拦截、冷启动中断恢复、顺序持久化和凭证服务地址绑定。
 - Codex 内置浏览器 + 本地模拟 HTTP 服务：获取模型、保存设置、中文流式回复、Agent 绘图工具串联、图片落盘到网页记录、作品库、引用作品进行编辑、停止生成、429 错误。
-- 原生模块自动链接能发现 AntsPdf；Android 项目生成完成。此项不等于 Kotlin 编译通过。
+- GitHub Actions run 39215727418：arm64-v8a 与 armeabi-v7a 独立构建成功，AntsPdf 原生模块编译通过；APK 签名、单 ABI、内置 JS bundle 检查通过。
+- ARM64 下载后 SHA256 校验通过：`d866ef0a91dacfdd7a03234f8eef937f8edabc476d6dec86a53e24f72de1bcf6`。
 
 ## 未验证 / 等待
 
-- GitHub Actions APK 编译与产物：以当前提交对应 workflow run 为准。
+- 云端产物：[run 39215727418](https://github.com/sanker2008/newapi-chat/actions/runs/39215727418)，源码提交 `9d6e98b`，版本 1.0.0，测试签名。
 - Android 安装、PDF 文本提取、Skia 蒙版触摸与导出、相册权限/保存：尚未完成设备验收。
 - 真实 New API 对话、联网、图片生成和局部编辑：用户尚未提供实际网关模型配置，没有发起付费请求。
-- 真机：当前未连接真机，不能宣称真机通过。
+- 真机 PHN110（Android 16）已连接并授权 ADB。首次安装返回 `Failure [-99]`，当时设备锁屏；等待解锁后重试，尚未完成安装与启动验证。
 
 ## 环境说明
 
-本地曾尝试 Android 构建，Gradle 下载重试后成功，但 JVM 因 Windows 页面文件/内存不足未能完成构建。用户要求停止本地构建后已停止；后续仅使用 GitHub Actions。不得继续在本机下载原生构建依赖或运行 Gradle。
+本地首次构建因 Windows 页面文件/内存不足失败。用户后来要求本地编译，已复用两处 Gradle 缓存离线尝试，但缺少 Kotlin 2.3.0 JAR，未补下载。成功 APK 来自 GitHub Actions，本机仅下载 ARM64 产物用于手机安装。
