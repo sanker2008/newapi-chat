@@ -1,4 +1,4 @@
-# PTAH
+# 烛
 
 Android 优先的个人 New API 对话与图片创作应用。React Native + Expo 58 + TypeScript；纯客户端，无业务后端。用户自行填写服务地址和 Key。
 

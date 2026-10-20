@@ -28,7 +28,7 @@ export function ConversationDrawer({ visible, onClose, onNew, onSelect, onRename
     <View style={s.overlay}>
       <Pressable accessibilityRole="button" accessibilityLabel="关闭侧边栏遮罩" onPress={onClose} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={[s.panel, { width: Math.min(340, width * .82) }]}>
-        <View style={s.heading}><Text style={s.brand}>PTAH<Text style={{ color: c.accent }}> ·</Text></Text><IconButton name="close" label="关闭侧边栏" onPress={onClose} /></View>
+        <View style={s.heading}><Text style={s.brand}>烛<Text style={{ color: c.accent }}> ·</Text></Text><IconButton name="close" label="关闭侧边栏" onPress={onClose} /></View>
         <View style={s.controls}><Button title="＋ 新建对话" secondary disabled={!!app.running} onPress={() => { setSearch(''); onNew(); }} /><Field label="搜索会话" value={search} onChangeText={setSearch} placeholder="搜索标题或内容" /></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 12, gap: 8 }}>
           {groups.filter(g => g.items.length).map(group => <View key={group.title} style={{ gap: 4 }}>

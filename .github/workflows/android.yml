@@ -82,7 +82,7 @@ jobs:
           PY
           (cd artifacts && sha256sum *.apk > SHA256SUMS.txt)
           printf 'Commit: %s\nVersion: 1.0.0\nSigning: Android debug/test key (NOT a store release)\nArchitecture: %s\nMetro required: no\n' "$GITHUB_SHA" "$APK_ARCH" > artifacts/BUILD-INFO.txt
-          echo '### PTAH 1.0.0 测试 APK' >> "$GITHUB_STEP_SUMMARY"
+          echo '### 烛 1.0.0 测试 APK' >> "$GITHUB_STEP_SUMMARY"
           echo '包含 JS，可独立运行；使用 Android 测试签名，不能直接用于正式上架。下载下方 APK artifact。真实 API 需要在 App 内自行配置。' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
