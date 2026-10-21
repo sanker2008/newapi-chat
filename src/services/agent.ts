@@ -209,7 +209,7 @@ async function history(session: Session): Promise<any[]> {
   return result;
 }
 
-/** A single foreground run. There are no retries, background resumptions or implicit paid probes. */
+/** A single request chain, preserved across app background transitions. No retries, process-death resumptions or implicit paid probes. */
 export async function runAgent(input: RunInput): Promise<void> {
   assertActive(input.signal);
   if (!input.apiKey.trim()) throw new Error('请先填写 API Key');

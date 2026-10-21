@@ -10,7 +10,7 @@ type AppContextValue = {
   artworks: Attachment[]; running: boolean; draftAttachments: Attachment[]; mask: Attachment | null;
   saveSettings: (settings:ProviderSettings,key:string)=>Promise<void>; selectConversation:(id:string)=>void; newConversation:()=>void;
   deleteConversation:(id:string)=>void; renameConversation:(id:string,title:string)=>void; send:(text:string,mode:'agent'|'chat'|'image')=>Promise<void>;
-  stop:()=>void; addAttachment:(a:Attachment)=>void; removeAttachment:(id:string)=>void; setMask:(a:Attachment|null)=>void; clearHistory:()=>Promise<void>;
+  branchFromMessage:(id:string)=>Promise<void>; restoreMessageDraft:(id:string)=>string; stop:()=>void; addAttachment:(a:Attachment)=>void; removeAttachment:(id:string)=>void; setMask:(a:Attachment|null)=>void; clearHistory:()=>Promise<void>;
 };
 const Context=createContext<AppContextValue|null>(null);
 export function AppProvider({children}:{children:React.ReactNode}) {
@@ -19,13 +19,14 @@ export function AppProvider({children}:{children:React.ReactNode}) {
   const [conversations,setConversations]=useState<Conversation[]>([]),[activeId,setActiveId]=useState<string|null>(null);
   const [draftAttachments,setDraftAttachments]=useState<Attachment[]>([]),[mask,setMask]=useState<Attachment|null>(null),[running,setRunning]=useState(false);
   const state=useRef({settings,conversations,activeId}); state.current={settings,conversations,activeId};
-  const control=useRef<AbortController|null>(null), timer=useRef<ReturnType<typeof setTimeout>|null>(null), background=useRef(false);
+  const control=useRef<AbortController|null>(null), timer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const hydrated=useRef(false),maintenance=useRef(false);
   const persist=async()=>{if(!hydrated.current||maintenance.current)return;try {await saveSnapshot(state.current);}catch(e){setError(`记录保存失败：${e instanceof Error?e.message:'存储不可用'}`);}};
   useEffect(()=>{let mounted=true; (async()=>{try {const snapshot=await loadSnapshot();const key=await loadKey(snapshot.settings.baseUrl);if(!mounted)return;state.current=snapshot;setSettings(snapshot.settings);setConversations(snapshot.conversations);setActiveId(snapshot.activeId);setApiKey(key);hydrated.current=true;setReady(true);}catch(e){if(mounted)setError(`无法读取本地数据：${e instanceof Error?e.message:'未知错误'}`);}})();return()=>{mounted=false;hydrated.current=false;control.current?.abort();};},[]);
   useEffect(()=>{if(!ready||timer.current)return;timer.current=setTimeout(()=>{timer.current=null;void persist();},350);},[settings,conversations,activeId,ready]);
   useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);},[]);
-  useEffect(()=>{const subscription=AppState.addEventListener('change',next=>{if(next==='background'){background.current=true;control.current?.abort();void persist();}else if(next==='active'){background.current=false;}});return()=>subscription.remove();},[]);
+  // A background transition is not cancellation: keep the original request alive.
+  useEffect(()=>{const subscription=AppState.addEventListener('change',next=>{if(next==='background'||next==='inactive'){void persist();}});return()=>subscription.remove();},[]);
 
   function updateConversation(id:string,change:(c:Conversation)=>Conversation) {
     const next=state.current.conversations.map(c=>c.id===id?change(c):c);
@@ -59,12 +60,31 @@ export function AppProvider({children}:{children:React.ReactNode}) {
       update(m=>({...m,status:'completed'}));
     }catch(e){
       const cancelled=controller.signal.aborted;
-      const reason=cancelled?(background.current?'应用进入后台，任务已中断；上游结果待确认。':'已停止等待，上游任务和费用可能仍在继续。'):(e instanceof Error?e.message:'请求失败，请检查网络和模型配置');
-      update(m=>({...m,status:cancelled?(background.current?'interrupted':'cancelled'):'failed',text:`${m.text}${m.text?'\n\n':''}${reason}`,steps:m.steps?.map(s=>s.status==='running'?{...s,status:'failed',detail:reason}:s)}));
+      const reason=cancelled?'已停止等待，上游任务和费用可能仍在继续。':(e instanceof Error?e.message:'请求失败，请检查网络和模型配置');
+      update(m=>({...m,status:cancelled?'cancelled':'failed',text:`${m.text}${m.text?'\n\n':''}${reason}`,steps:m.steps?.map(s=>s.status==='running'?{...s,status:'failed',detail:reason}:s)}));
     }finally {if(control.current===controller){control.current=null;setRunning(false);}await persist();}
   }
-  const artworks=conversations.flatMap(c=>c.messages.filter(m=>m.role==='assistant').flatMap(m=>m.attachments.filter(a=>a.kind==='image'))).sort((a,b)=>b.createdAt-a.createdAt);
+  const artworks=[...new Map(conversations.flatMap(c=>c.messages.filter(m=>m.role==='assistant').flatMap(m=>m.attachments.filter(a=>a.kind==='image'))).map(a=>[a.id,a])).values()].sort((a,b)=>b.createdAt-a.createdAt);
   const value:AppContextValue={ready,error,settings,apiKey,conversations,activeId,artworks,running,draftAttachments,mask,send,
+    branchFromMessage:async id=>{
+      if(control.current||maintenance.current)throw new Error('请先停止当前任务，等待停止完成后再创建分支');
+      const source=state.current.conversations.find(c=>c.id===state.current.activeId);
+      const index=source?.messages.findIndex(m=>m.id===id&&m.role==='assistant')??-1;
+      if(!source||index<0)throw new Error('找不到这条回复');
+      const target=source.messages[index];
+      if(target.status==='running'||(!target.text.trim()&&!target.attachments.length))throw new Error('请等待收到结果后再创建分支');
+      const branch:Conversation={id:uid(),title:`${source.title.slice(0,70)} · 分支`,updatedAt:Date.now(),messages:source.messages.slice(0,index+1).map(m=>({...m,id:uid(),attachments:m.attachments.map(a=>({...a})),steps:m.steps?.map(step=>({...step})),usage:m.usage?{...m.usage}:undefined}))};
+      const next={...state.current,conversations:[branch,...state.current.conversations],activeId:branch.id};
+      maintenance.current=true;
+      try{await saveSnapshot(next);state.current=next;setConversations(next.conversations);setActiveId(branch.id);setDraftAttachments([]);setMask(null);}finally{maintenance.current=false;}
+    },
+    restoreMessageDraft:id=>{
+      if(control.current||maintenance.current)throw new Error('请先停止当前任务，等待停止完成后再编辑历史消息');
+      const message=state.current.conversations.find(c=>c.id===state.current.activeId)?.messages.find(m=>m.id===id&&m.role==='user');
+      if(!message)throw new Error('找不到这条历史消息');
+      setDraftAttachments([...message.attachments]);setMask(null);
+      return message.text;
+    },
     stop:()=>control.current?.abort(),
     saveSettings:async(next,key)=>{if(control.current||maintenance.current)throw new Error('请先等待当前操作完成');maintenance.current=true;try{await saveKey(key.trim(),next.baseUrl);const saved={...state.current,settings:next};await saveSnapshot(saved);state.current=saved;setSettings(next);setApiKey(key.trim());setError(null);}finally{maintenance.current=false;}},
     selectConversation:id=>{setActiveId(id);setDraftAttachments([]);setMask(null);},
