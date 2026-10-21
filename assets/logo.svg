@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 208" fill="none">
+  <defs><clipPath id="image-frame"><rect x="108" y="56" width="144" height="144" rx="34"/></clipPath></defs>
+  <rect x="108" y="56" width="144" height="144" rx="34" fill="#D6E1EF"/>
+  <path fill="#5675A6" d="M56 28H136C155 28 168 41 168 56V110C168 133 153 148 130 148H76L40 174V148C28 144 24 134 24 120V60C24 41 37 28 56 28Z"/>
+  <path fill="#839ABD" clip-path="url(#image-frame)" d="M96 212L163 145L181 163L207 129L272 212Z"/>
+  <path fill="#191C20" d="M168 56V110C168 133 153 148 130 148H108V116C108 83 134 56 168 56Z"/>
+  <path fill="#FFFFFF" d="M140 80C136 95 124 109 124 121C124 132 131 139 139 139C148 139 155 131 155 121C155 109 146 96 140 80Z"/>
+</svg>

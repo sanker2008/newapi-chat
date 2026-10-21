@@ -47,3 +47,7 @@ artifacts/
 
 # Local browser automation traces
 .playwright-mcp/
+
+# build folders
+**/build/
+build/
