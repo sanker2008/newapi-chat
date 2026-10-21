@@ -18,13 +18,14 @@ export function safeMessage(error: unknown, apiKey = ''): string {
 
 class HttpFailure extends Error {}
 
-export async function withDeadline<T>(signal: AbortSignal | undefined, milliseconds: number, paid: boolean, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+export async function withDeadline<T>(signal: AbortSignal | undefined, milliseconds: number | null, paid: boolean, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
   assertActive(signal);
   const controller = new AbortController();
   let timedOut = false;
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort, { once: true });
-  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, milliseconds);
+  // null keeps long-running model requests cancellable without a local deadline.
+  const timer = milliseconds === null ? null : setTimeout(() => { timedOut = true; controller.abort(); }, milliseconds);
   try {
     const result = await work(controller.signal);
     assertActive(signal);
@@ -39,7 +40,7 @@ export async function withDeadline<T>(signal: AbortSignal | undefined, milliseco
     }
     throw error;
   } finally {
-    clearTimeout(timer);
+    if (timer !== null) clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
   }
 }
@@ -80,10 +81,10 @@ export async function boundedText(response: Response, maxBytes: number): Promise
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
-export async function requestJson(settings: ProviderSettings, apiKey: string, path: string, options: { body?: unknown; form?: FormData; signal?: AbortSignal; timeout?: number; method?: string; maxBytes?: number } = {}): Promise<any> {
+export async function requestJson(settings: ProviderSettings, apiKey: string, path: string, options: { body?: unknown; form?: FormData; signal?: AbortSignal; timeout?: number | null; method?: string; maxBytes?: number } = {}): Promise<any> {
   if (!apiKey.trim()) throw new Error('请先填写 API Key');
   const method = options.method ?? 'POST';
-  return withDeadline(options.signal, options.timeout ?? 120_000, method !== 'GET', async signal => {
+  return withDeadline(options.signal, options.timeout === undefined ? (method === 'GET' ? 120_000 : null) : options.timeout, method !== 'GET', async signal => {
     const response = await checked(await fetch(apiUrl(settings.baseUrl, path), {
       method, signal, redirect: 'error', credentials: 'omit',
       headers: { Authorization: `Bearer ${apiKey.trim()}`, ...(options.form ? {} : { 'Content-Type': 'application/json' }) },
@@ -101,7 +102,7 @@ export async function listModels(settings: ProviderSettings, apiKey: string, sig
 }
 
 export async function streamChat(settings: ProviderSettings, apiKey: string, body: Record<string, unknown>, signal: AbortSignal, onText: (text: string) => void): Promise<ChatResult> {
-  return withDeadline(signal, 120_000, true, async requestSignal => {
+  return withDeadline(signal, null, true, async requestSignal => {
     const response = await checked(await fetch(apiUrl(settings.baseUrl, 'chat/completions'), {
       method: 'POST', signal: requestSignal, redirect: 'error', credentials: 'omit',
       headers: { Authorization: `Bearer ${apiKey.trim()}`, 'Content-Type': 'application/json', Accept: 'text/event-stream' },

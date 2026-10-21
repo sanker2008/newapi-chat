@@ -86,6 +86,52 @@ test('a disconnected image request is sent once and ends the run', async () => {
   assert.equal(requests, 1); assert.equal(saved.length, 0);
 });
 
+for (const mode of ['chat', 'image']) {
+  test(`${mode} remains pending beyond former deadlines and accepts a late result`, async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const run = input({ mode });
+    let finish, requestSignal, requests = 0;
+    network = (_url, options) => {
+      requests++; requestSignal = options.signal;
+      return new Promise(resolve => { finish = resolve; });
+    };
+    let settled = false;
+    const pending = runAgent(run.value).finally(() => { settled = true; });
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    assert.ok(requestSignal);
+    t.mock.timers.tick(30 * 60_000);
+    assert.equal(requestSignal.aborted, false);
+    assert.equal(settled, false);
+    finish(mode === 'image' ? json({ data: [{ b64_json: 'abc' }] }) : reply('迟到的回复'));
+    await pending;
+    assert.equal(requests, 1);
+    if (mode === 'image') assert.equal(run.changes.images.length, 1);
+    else assert.equal(run.changes.text, '迟到的回复');
+  });
+
+  test(`${mode} can still be stopped while waiting without resubmission`, async () => {
+    const run = input({ mode });
+    let requests = 0;
+    network = (_url, options) => {
+      requests++;
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        run.controller.abort();
+      });
+    };
+    await assert.rejects(runAgent(run.value), { name: 'AbortError' });
+    assert.equal(requests, 1);
+    assert.equal(saved.length, 0);
+  });
+}
+
+test('upstream image timeout is reported immediately without resubmission', async () => {
+  const run = input({ mode: 'image' }); let requests = 0;
+  network = async () => { requests++; return new Response('Gateway Timeout', { status: 504 }); };
+  await assert.rejects(runAgent(run.value), /HTTP 504/);
+  assert.equal(requests, 1);
+});
+
 test('two image attempts block the third POST', async () => {
   const run = input(); let chat = 0, images = 0;
   network = async url => {
