@@ -10,7 +10,7 @@ type AppContextValue = {
   artworks: Attachment[]; running: boolean; draftAttachments: Attachment[]; mask: Attachment | null;
   saveSettings: (settings:ProviderSettings,key:string)=>Promise<void>; selectConversation:(id:string)=>void; newConversation:()=>void;
   deleteConversation:(id:string)=>void; renameConversation:(id:string,title:string)=>void; send:(text:string,mode:'agent'|'chat'|'image')=>Promise<void>;
-  branchFromMessage:(id:string)=>Promise<void>; restoreMessageDraft:(id:string)=>string; stop:()=>void; addAttachment:(a:Attachment)=>void; removeAttachment:(id:string)=>void; setMask:(a:Attachment|null)=>void; clearHistory:()=>Promise<void>;
+  regenerate:(id:string,mode:'agent'|'chat'|'image')=>Promise<void>; branchFromMessage:(id:string)=>Promise<void>; restoreMessageDraft:(id:string)=>string; stop:()=>void; addAttachment:(a:Attachment)=>void; removeAttachment:(id:string)=>void; setMask:(a:Attachment|null)=>void; clearHistory:()=>Promise<void>;
 };
 const Context=createContext<AppContextValue|null>(null);
 export function AppProvider({children}:{children:React.ReactNode}) {
@@ -21,7 +21,7 @@ export function AppProvider({children}:{children:React.ReactNode}) {
   const state=useRef({settings,conversations,activeId}); state.current={settings,conversations,activeId};
   const control=useRef<AbortController|null>(null), timer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const hydrated=useRef(false),maintenance=useRef(false);
-  const persist=async()=>{if(!hydrated.current||maintenance.current)return;try {await saveSnapshot(state.current);}catch(e){setError(`记录保存失败：${e instanceof Error?e.message:'存储不可用'}`);}};
+  const persist=async()=>{if(!hydrated.current||maintenance.current)return;try {await saveSnapshot(state.current);setError(previous=>previous?.startsWith('记录保存失败：')?null:previous);}catch(e){setError(`记录保存失败：${e instanceof Error?e.message:'存储不可用'}`);}};
   useEffect(()=>{let mounted=true; (async()=>{try {const snapshot=await loadSnapshot();const key=await loadKey(snapshot.settings.baseUrl);if(!mounted)return;state.current=snapshot;setSettings(snapshot.settings);setConversations(snapshot.conversations);setActiveId(snapshot.activeId);setApiKey(key);hydrated.current=true;setReady(true);}catch(e){if(mounted)setError(`无法读取本地数据：${e instanceof Error?e.message:'未知错误'}`);}})();return()=>{mounted=false;hydrated.current=false;control.current?.abort();};},[]);
   useEffect(()=>{if(!ready||timer.current)return;timer.current=setTimeout(()=>{timer.current=null;void persist();},350);},[settings,conversations,activeId,ready]);
   useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);},[]);
@@ -32,22 +32,29 @@ export function AppProvider({children}:{children:React.ReactNode}) {
     const next=state.current.conversations.map(c=>c.id===id?change(c):c);
     state.current={...state.current,conversations:next};setConversations(next);
   }
-  async function send(text:string,mode:'agent'|'chat'|'image') {
+  async function send(text:string,mode:'agent'|'chat'|'image',retryId?:string) {
+    const existing=state.current.conversations.find(c=>c.id===state.current.activeId);
+    const target=retryId?existing?.messages.at(-1):undefined;
+    if(retryId&&(!target||target.id!==retryId||target.role!=='assistant'||target.status==='running'))throw new Error('只能重新生成最新一条已结束的回复');
+    const original=retryId?[...(existing?.messages||[])].reverse().find(m=>m.role==='user'):undefined;
+    if(retryId&&!original)throw new Error('找不到原始问题');
+    if(original){text=original.text;mode=original.mode||mode;}
+    const requestMask=original?original.requestMask:mask;
     if(maintenance.current||!hydrated.current)throw new Error('正在处理本机数据，请稍后再发送');
     if(control.current) return;
     if(!text.trim()) throw new Error('请先输入你的要求');
     if(!settings.baseUrl||!apiKey) throw new Error('请先在设置中填写 New API 地址和 Key');
     if(mode==='image'?!settings.imageModel:!settings.chatModel) throw new Error('请先在设置中选择对应模型');
-    if(mask && !settings.maskEnabled) throw new Error('请先验证模型并开启蒙版编辑能力');
+    if(requestMask && !settings.maskEnabled) throw new Error('请先验证模型并开启蒙版编辑能力');
     const controller=new AbortController(); control.current=controller;setRunning(true);setError(null);
-    const existing=conversations.find(c=>c.id===activeId); const conversationId=existing?.id||uid();
-    const user:Message={id:uid(),role:'user',text:text.trim(),attachments:[...draftAttachments],createdAt:Date.now()};
+    const conversationId=existing?.id||uid();
+    const user:Message=original||{id:uid(),role:'user',text:text.trim(),attachments:[...draftAttachments],mode,requestMask:requestMask||undefined,createdAt:Date.now()};
     const assistant:Message={id:uid(),role:'assistant',text:'',attachments:[],steps:[],status:'running',createdAt:Date.now()};
-    const history=[...(existing?.messages||[]),user];
-    const created:Conversation={id:conversationId,title:existing?.title||text.trim().slice(0,28),messages:[...history,assistant],updatedAt:Date.now()};
+    const history=original?existing!.messages.slice(0,existing!.messages.findIndex(m=>m.id===original.id)+1):[...(existing?.messages||[]),user];
+    const created:Conversation={id:conversationId,title:existing?.title||text.trim().slice(0,28),messages:[...(original?existing!.messages:history),assistant],updatedAt:Date.now()};
     const next=existing?state.current.conversations.map(c=>c.id===conversationId?created:c):[created,...state.current.conversations];
     state.current={...state.current,conversations:next,activeId:conversationId};setConversations(next);
-    setActiveId(conversationId);setDraftAttachments([]); const currentMask=mask;setMask(null);
+    setActiveId(conversationId);if(!original){setDraftAttachments([]);setMask(null);} const currentMask=requestMask;
     const update=(change:(m:Message)=>Message)=>updateConversation(conversationId,c=>({...c,updatedAt:Date.now(),messages:c.messages.map(m=>m.id===assistant.id?change(m):m)}));
     try {
       await saveSnapshot(state.current);
@@ -57,15 +64,15 @@ export function AppProvider({children}:{children:React.ReactNode}) {
         onImage:image=>{if(!controller.signal.aborted)update(m=>({...m,attachments:[...m.attachments,image]}));},
         onUsage:usage=>update(m=>({...m,usage}))});
       if(controller.signal.aborted) throw new Error('已停止');
-      update(m=>({...m,status:'completed'}));
+      update(m=>({...m,status:'completed',durationMs:Date.now()-assistant.createdAt}));
     }catch(e){
       const cancelled=controller.signal.aborted;
       const reason=cancelled?'已停止等待，上游任务和费用可能仍在继续。':(e instanceof Error?e.message:'请求失败，请检查网络和模型配置');
-      update(m=>({...m,status:cancelled?'cancelled':'failed',text:`${m.text}${m.text?'\n\n':''}${reason}`,steps:m.steps?.map(s=>s.status==='running'?{...s,status:'failed',detail:reason}:s)}));
+      update(m=>({...m,status:cancelled?'cancelled':'failed',durationMs:Date.now()-assistant.createdAt,text:`${m.text}${m.text?'\n\n':''}${reason}`,steps:m.steps?.map(s=>s.status==='running'?{...s,status:'failed',detail:reason}:s)}));
     }finally {if(control.current===controller){control.current=null;setRunning(false);}await persist();}
   }
   const artworks=[...new Map(conversations.flatMap(c=>c.messages.filter(m=>m.role==='assistant').flatMap(m=>m.attachments.filter(a=>a.kind==='image'))).map(a=>[a.id,a])).values()].sort((a,b)=>b.createdAt-a.createdAt);
-  const value:AppContextValue={ready,error,settings,apiKey,conversations,activeId,artworks,running,draftAttachments,mask,send,
+  const value:AppContextValue={ready,error,settings,apiKey,conversations,activeId,artworks,running,draftAttachments,mask,send,regenerate:(id,mode)=>send('',mode,id),
     branchFromMessage:async id=>{
       if(control.current||maintenance.current)throw new Error('请先停止当前任务，等待停止完成后再创建分支');
       const source=state.current.conversations.find(c=>c.id===state.current.activeId);

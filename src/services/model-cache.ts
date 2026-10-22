@@ -1,9 +1,10 @@
+import { loadModelCatalog, saveModelCatalog } from '../core/storage';
 import type { ProviderSettings } from '../core/types';
 import { listModels } from './newapi';
 
-// Session-only cache: credentials never enter SQLite, localStorage or logs.
+// Credentials remain in memory; model names are persisted separately.
 // Keep one credential scope so a changed address/key cannot reuse another list.
-const TTL = 5 * 60 * 1000;
+const TTL = Infinity;
 let entry: { url: string; key: string; models?: string[]; expires: number; pending?: Promise<string[]> } | undefined;
 
 export function getModels(settings: ProviderSettings, key: string, force = false): Promise<string[]> {
@@ -13,9 +14,16 @@ export function getModels(settings: ProviderSettings, key: string, force = false
   const current = entry;
   if (current.pending) return current.pending;
   if (!force && current.models && current.expires > Date.now()) return Promise.resolve([...current.models]);
-  current.pending = listModels(settings, key).then(models => {
+  current.pending = listModels(settings, key).then(async models => {
+    await saveModelCatalog(url, models);
     current.models = [...models]; current.expires = Date.now() + TTL;
     return [...models];
   }).finally(() => { current.pending = undefined; });
   return current.pending;
+}
+
+export async function getSavedModels(settings: ProviderSettings, key = ''): Promise<string[]> {
+  const saved = await loadModelCatalog(settings.baseUrl);
+  if (!saved && key) return getModels(settings, key);
+  return saved ?? [...new Set([settings.chatModel, settings.imageModel, settings.searchModel].filter(Boolean))];
 }

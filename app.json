@@ -49,7 +49,11 @@
       ],
       "expo-sharing",
       "expo-image"
-    ]
+    ],
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAFBFC"
+    }
   }
 }
-

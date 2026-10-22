@@ -109,3 +109,19 @@ test('branch copies context through selected reply without resubmission or dupli
   assert.equal(h.app.conversations[0].messages[1].attachments[0].uri, 'file:///shared.png');
   await assert.rejects(h.app.branchFromMessage('missing'), /找不到/);
 });
+
+test('regenerate uses original input and mode, preserves reply and unsent attachments, rejects stale clicks', async () => {
+ const h=await harness();h.app.addAttachment({id:'source',kind:'image',uri:'file:///source.png'});h.render();
+ let pending=h.app.send('original prompt','image');await new Promise(resolve=>setImmediate(resolve));
+ h.request.onText('original answer');h.finish();await pending;h.render();
+ const reply=h.app.conversations[0].messages.at(-1).id;
+ h.app.addAttachment({id:'draft',kind:'image',uri:'file:///draft.png'});h.render();
+ pending=h.app.regenerate(reply,'chat');await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(h.request.mode,'image');assert.equal(h.request.messages.length,1);
+ assert.equal(h.request.messages[0].text,'original prompt');assert.equal(h.request.attachments[0].id,'source');
+ await assert.rejects(h.app.regenerate(reply,'chat'),/最新/);assert.equal(h.calls,2);
+ h.request.onText('new answer');h.finish();await pending;h.render();
+ assert.equal(h.app.conversations[0].messages.length,3);assert.equal(h.app.conversations[0].messages[1].text,'original answer');
+ assert.equal(h.app.conversations[0].messages[2].text,'new answer');assert.equal(h.app.draftAttachments[0].id,'draft');
+ await assert.rejects(h.app.regenerate(reply,'image'),/最新/);
+});

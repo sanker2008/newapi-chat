@@ -14,10 +14,10 @@ export function logoSvg(palette = logoPalette) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 208" fill="none">
   <defs><clipPath id="image-frame"><rect x="108" y="56" width="144" height="144" rx="34"/></clipPath></defs>
   <rect x="108" y="56" width="144" height="144" rx="34" fill="${palette.secondary}"/>
-  <path fill="${palette.primary}" d="M56 28H136C155 28 168 41 168 56V110C168 133 153 148 130 148H76L40 174V148C28 144 24 134 24 120V60C24 41 37 28 56 28Z"/>
+  <path fill="${palette.primary}" d="M56 28H136C155 28 168 41 168 56V110C168 133 153 148 130 148H56L24 170V60C24 41 37 28 56 28Z"/>
   <path fill="${palette.mountain}" clip-path="url(#image-frame)" d="M96 212L163 145L181 163L207 129L272 212Z"/>
   <path fill="${palette.overlap}" d="M168 56V110C168 133 153 148 130 148H108V116C108 83 134 56 168 56Z"/>
-  <path fill="${palette.flame}" d="M140 80C136 95 124 109 124 121C124 132 131 139 139 139C148 139 155 131 155 121C155 109 146 96 140 80Z"/>
+  <path fill="${palette.flame}" d="M153 96V119.76C153 129.88 146.4 136.48 136.28 136.48H133.6C129.73 136.48 126.6 133.35 126.6 129.48V122.4C126.6 107.88 138.04 96 153 96Z"/>
 </svg>`;
 }
 

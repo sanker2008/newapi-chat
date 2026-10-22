@@ -4,13 +4,14 @@ const Module = require('node:module');
 const fs = require('node:fs');
 const ts = require('typescript');
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, filename);
-let calls = 0, fail = false;
+let calls = 0, fail = false; const catalogs = new Map();
 const original = Module._load;
 Module._load = function(request, parent, main) {
+  if (request === '../core/storage') return { loadModelCatalog: async url => catalogs.get(url), saveModelCatalog: async (url, models) => catalogs.set(url, [...models]) };
   if (request === './newapi') return { listModels: async () => { calls++; if (fail) throw new Error('offline'); return ['model-' + calls]; } };
   return original.call(this, request, parent, main);
 };
-const { getModels } = require('./model-cache.ts');
+const { getModels, getSavedModels } = require('./model-cache.ts');
 test('model cache reuses and deduplicates requests, refreshes, isolates credentials, and recovers from failure', async () => {
   const settings = { baseUrl: 'https://example.test' };
   const [a, b] = await Promise.all([getModels(settings, 'test-a'), getModels(settings, 'test-a')]);
@@ -23,5 +24,13 @@ test('model cache reuses and deduplicates requests, refreshes, isolates credenti
   fail = true; await assert.rejects(getModels(settings, 'test-c'), /offline/);
   fail = false; await getModels(settings, 'test-c'); assert.equal(calls, 6);
   const now = Date.now; Date.now = () => now() + 6 * 60 * 1000;
-  try { await getModels(settings, 'test-c'); assert.equal(calls, 7); } finally { Date.now = now; }
+  try { await getModels(settings, 'test-c'); assert.equal(calls, 6); } finally { Date.now = now; }
+});
+
+test('saved catalog is available without a key and isolated by provider', async () => {
+ catalogs.set('https://saved.test', ['saved-model']);
+ const before = calls;
+ assert.deepEqual(await getSavedModels({baseUrl:'https://saved.test'}), ['saved-model']);
+ assert.equal(calls,before);
+ assert.deepEqual(await getSavedModels({baseUrl:'https://unknown.test',chatModel:'configured'}), ['configured']);
 });

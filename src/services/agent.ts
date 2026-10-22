@@ -241,7 +241,7 @@ export async function runAgent(input: RunInput): Promise<void> {
       const roundTools = finalRound ? [] : availableTools.filter(tool => tool.function.name !== 'search_web' || session.models < MAX_MODELS - 1);
       const availableNames = new Set(roundTools.map(tool => tool.function.name));
       const catalog = [...allowed.values()].map(attachment => ({ id: attachment.id, name: attachment.name, kind: attachment.kind }));
-      const result = await step(session, `思考与回复 ${session.models}/${MAX_MODELS}`, () => streamChat(input.settings, input.apiKey, {
+      const result = await step(session, session.models === 1 ? '处理请求' : '整理回复', () => streamChat(input.settings, input.apiKey, {
         model: input.settings.chatModel.trim(),
         messages: [...conversation, { role: 'system', content: `本轮可用附件白名单：${JSON.stringify(catalog)}。剩余模型请求次数 ${MAX_MODELS - session.models}，剩余绘图尝试 ${MAX_IMAGES - session.images}。${finalRound ? '本轮必须总结已有结果，不再调用工具。' : ''}` }],
         ...(roundTools.length ? { tools: roundTools, tool_choice: 'auto' } : {}),

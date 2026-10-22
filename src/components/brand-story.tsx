@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { BrandLogo } from './brand-logo';
 import { colors as c } from '../theme';
 
 export const brandMotto = '一念初起，万象渐明';
@@ -8,7 +9,7 @@ export function BrandStory() {
   return (
     <View style={s.container}>
       <Text accessibilityRole="header" style={s.label}>烛的来处</Text>
-      <Text style={s.name}>烛</Text>
+      <View style={s.brand}><Text style={s.name}>烛</Text><View style={{ marginBottom: -16 }}><BrandLogo size={56} /></View></View>
       <Text style={s.motto}>{brandMotto}</Text>
       <View style={s.quote}>
         <Text selectable style={s.quotation}>“视为昼，瞑为夜。”</Text>
@@ -24,6 +25,7 @@ export function BrandStory() {
 const s = StyleSheet.create({
   container: { backgroundColor: c.paper, borderRadius: 16, padding: 24, gap: 16 },
   label: { color: c.muted, fontSize: 12, letterSpacing: 2 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   name: { color: c.accent, fontSize: 44, fontWeight: '600' },
   motto: { color: c.ink, fontSize: 19, lineHeight: 30, fontWeight: '500' },
   quote: { gap: 6, paddingVertical: 8 },
