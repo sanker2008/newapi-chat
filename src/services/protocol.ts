@@ -11,27 +11,60 @@ export function apiUrl(base: string, path: string): string {
   return `${root.endsWith('/v1') ? root : `${root}/v1`}/${path.replace(/^\/+/, '')}`;
 }
 
-/** Incremental SSE framing: a network chunk is not an event or a JSON object. */
+// Transport JSON can include large reasoning/metadata fields that are not displayed
+// or added to conversation history. Keep separate limits for content/tool arguments.
+export const MAX_CHAT_EVENT_CHARS = 16_000_000;
+
+/** Incremental SSE framing supporting LF, CRLF and CR (including split CRLF). */
 export class EventStream {
   private pending = '';
   private data: string[] = [];
+  private dataLength = 0;
+  private skipLF = false;
+  private events = 0;
   private emit: (data: string) => void;
-  constructor(emit: (data: string) => void) { this.emit = emit; }
-  push(chunk: string) {
-    this.pending += chunk;
-    if (this.pending.length > 2_000_000) throw new Error('流式事件过大，已停止');
-    let index: number;
-    while ((index = this.pending.indexOf('\n')) >= 0) {
-      const line = this.pending.slice(0, index).replace(/\r$/, '');
-      this.pending = this.pending.slice(index + 1);
-      if (!line) {
-        if (this.data.length) this.emit(this.data.join('\n'));
-        this.data = [];
-      } else if (line.startsWith('data:')) {
-        this.data.push(line.slice(5).replace(/^ /, ''));
-        if (this.data.join('').length > 2_000_000) throw new Error('流式事件过大，已停止');
-      }
+  private maxChars: number;
+  constructor(emit: (data: string) => void, maxChars = MAX_CHAT_EVENT_CHARS) {
+    this.emit = emit;
+    this.maxChars = maxChars;
+  }
+  private tooLarge(kind: string): never {
+    throw new Error(`流式响应${kind}超过 ${Math.round(this.maxChars / 1_000_000)}M 字符限制（已解析 ${this.events} 个事件）；未自动重试`);
+  }
+  private line(line: string) {
+    if (!line) {
+      const data = this.data;
+      this.data = [];
+      this.dataLength = 0;
+      if (data.length) { this.events++; this.emit(data.join('\n')); }
+    } else if (line.startsWith('data:')) {
+      const value = line.slice(5).replace(/^ /, '');
+      this.dataLength += value.length + (this.data.length ? 1 : 0);
+      if (this.dataLength > this.maxChars) this.tooLarge('单个事件');
+      this.data.push(value);
     }
+  }
+  push(chunk: string) {
+    // Never apply the event limit to an entire network chunk.
+    let start = 0;
+    for (let index = 0; index < chunk.length; index++) {
+      const char = chunk[index];
+      if (this.skipLF) {
+        this.skipLF = false;
+        if (char === '\n') { start = index + 1; continue; }
+      }
+      if (char !== '\r' && char !== '\n') continue;
+      if (this.pending.length + index - start > this.maxChars) this.tooLarge('单行');
+      const line = this.pending + chunk.slice(start, index);
+      this.pending = '';
+      this.line(line);
+      this.skipLF = char === '\r';
+      start = index + 1;
+    }
+    if (this.pending.length + chunk.length - start > this.maxChars) this.tooLarge('未结束的单行');
+    this.pending += chunk.slice(start);
+    // Account for partial data lines as well as complete lines in this event.
+    if (this.pending.startsWith('data:') && this.dataLength + this.pending.length - 5 > this.maxChars) this.tooLarge('单个事件');
   }
   finish() { if (this.pending.trim() || this.data.length) throw new Error('流式响应中断，未执行未完成的工具'); }
 }

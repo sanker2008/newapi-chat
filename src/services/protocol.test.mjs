@@ -49,3 +49,41 @@ test('gateway path is normalized once and URL credentials/query are rejected', (
   assert.equal(apiUrl('https://example.com/gateway', 'models'), 'https://example.com/gateway/v1/models');
   assert.throws(() => apiUrl('https://example.com?key=secret', 'models'));
 });
+
+test('large coalesced network chunks are framed before per-event limits', () => {
+  let count = 0;
+  const stream = new EventStream(() => count++);
+  const event = 'data: ' + 'x'.repeat(1000) + '\n\n';
+  const payload = event.repeat(3000);
+  assert.ok(payload.length > 2_000_000);
+  stream.push(payload.slice(0, 4));
+  stream.push(payload.slice(4));
+  stream.finish();
+  assert.equal(count, 3000);
+});
+test('individual oversized and fragmented events remain bounded', () => {
+  const create = () => new EventStream(() => assert.fail('oversized event emitted'), 2_000_000);
+  assert.throws(() => create().push('data: ' + 'x'.repeat(2_000_001) + '\n\n'), /限制/);
+  const partial = create(); partial.push('data: ' + 'x'.repeat(1_000_000));
+  assert.throws(() => partial.push('x'.repeat(1_000_001)), /限制/);
+  const multiline = create(); multiline.push('data: ' + 'x'.repeat(1_000_000) + '\n');
+  assert.throws(() => multiline.push('data: ' + 'x'.repeat(1_000_000) + '\n\n'), /限制/);
+});
+
+test('SSE supports CR-only and every split of mixed line endings', () => {
+ const payload=': ping\rdata: first\r\rdata: second\r\n\r\ndata: third\n\ndata: [DONE]\r\r';
+ for(let split=0;split<=payload.length;split++){
+  const values=[];const stream=new EventStream(value=>values.push(value));
+  stream.push(payload.slice(0,split));stream.push(payload.slice(split));stream.finish();
+  assert.deepEqual(values,['first','second','third','[DONE]']);
+ }
+});
+test('large metadata event is accepted but text and tool limits still apply', () => {
+ const chat=new ChatAccumulator();const stream=new EventStream(value=>chat.accept(JSON.parse(value)));
+ const json=JSON.stringify({choices:[{delta:{reasoning_content:'x'.repeat(3_000_000),content:'完成'},finish_reason:'stop'}]});
+ const payload='data: '+json+'\n\n';
+ for(let i=0;i<payload.length;i+=65536)stream.push(payload.slice(i,i+65536));
+ stream.finish();assert.equal(chat.result().text,'完成');
+ assert.throws(()=>new ChatAccumulator().accept({choices:[{delta:{content:'x'.repeat(2_000_001)}}]}),/模型输出过长/);
+ assert.throws(()=>new ChatAccumulator().accept({choices:[{delta:{tool_calls:[{index:0,function:{arguments:'x'.repeat(100_001)}}]}}]}),/工具参数过长/);
+});

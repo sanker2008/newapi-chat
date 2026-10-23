@@ -24,7 +24,7 @@ export function logoSvg(palette = logoPalette) {
 /** Transparent SVG; colors can be overridden without editing bitmap assets. */
 export function BrandLogo({ size = 64, palette = logoPalette }: { size?: number; palette?: typeof logoPalette }) {
   return <Image
-    source={{ uri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(logoSvg(palette))}` }}
+    source={{ uri: `data:image/svg+xml;base64,${btoa(logoSvg(palette))}` }}
     accessibilityLabel="烛 Logo"
     contentFit="contain"
     style={{ width: size, height: size, marginBottom: 16 }}

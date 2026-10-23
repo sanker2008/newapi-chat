@@ -221,3 +221,27 @@ test('duplicate completed tool ID is not billed again', async () => {
   network = async url => { if (url.endsWith('/images/generations')) { images++; return json({ data: [{ b64_json: 'abc' }] }); } return call('generate_image', { prompt: 'cat' }, 'duplicate'); };
   await assert.rejects(runAgent(run.value), /重复工具调用 ID/); assert.equal(images, 1);
 });
+
+test('coalesced SSE over 2 MB still dispatches one image request and completes', async () => {
+ let chats=0, images=0;
+ network=async url=>{
+  if(url.endsWith('/images/generations')){images++;return json({data:[{b64_json:'aGVsbG8='}]});}
+  if(++chats>1)return reply('图片已完成');
+  const event='data: '+JSON.stringify({choices:[{delta:{reasoning_content:'x'.repeat(1000)}}]})+'\n\n';
+  const tool={choices:[{delta:{tool_calls:[{index:0,id:'large-batch',function:{name:'generate_image',arguments:'{"prompt":"test"}'}}]},finish_reason:'tool_calls'}]};
+  return new Response(event.repeat(2100)+'data: '+JSON.stringify(tool)+'\n\ndata: [DONE]\n\n',{headers:{'Content-Type':'text/event-stream'}});
+ };
+ const {value,changes}=input();await runAgent(value);
+ assert.equal(images,1);assert.equal(changes.images.length,1);assert.equal(chats,2);assert.equal(changes.text,'图片已完成');
+});
+
+test('single large reasoning event preserves image tool and sends no reasoning into next context', async () => {
+ let chats=0,images=0;
+ network=async (url,options)=>{
+  if(url.endsWith('/images/generations')){images++;return json({data:[{b64_json:'aGVsbG8='}]});}
+  if(++chats>1){assert.ok(options.body.length<20000);return reply('完成');}
+  const value={choices:[{delta:{reasoning_content:'x'.repeat(3_000_000),tool_calls:[{index:0,id:'large-event',function:{name:'generate_image',arguments:'{"prompt":"test"}'}}]},finish_reason:'tool_calls'}]};
+  return new Response('data: '+JSON.stringify(value)+'\r\rdata: [DONE]\r\r',{headers:{'Content-Type':'text/event-stream'}});
+ };
+ const {value,changes}=input();await runAgent(value);assert.equal(images,1);assert.equal(changes.images.length,1);assert.equal(chats,2);
+});

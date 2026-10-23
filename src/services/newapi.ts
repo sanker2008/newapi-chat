@@ -1,6 +1,6 @@
 import { fetch } from 'expo/fetch';
 import type { ProviderSettings } from '../core/types';
-import { apiUrl, ChatAccumulator, EventStream, type ChatResult } from './protocol';
+import { apiUrl, ChatAccumulator, EventStream, MAX_CHAT_EVENT_CHARS, type ChatResult } from './protocol';
 
 export function assertActive(signal?: AbortSignal) {
   if (signal?.aborted) {
@@ -111,7 +111,7 @@ export async function streamChat(settings: ProviderSettings, apiKey: string, bod
     const state = new ChatAccumulator();
     // Some compatible gateways ignore stream=true and return a complete JSON response.
     if (response.headers.get('content-type')?.includes('application/json')) {
-      state.accept(JSON.parse(await boundedText(response, 2_000_000)));
+      state.accept(JSON.parse(await boundedText(response, MAX_CHAT_EVENT_CHARS)));
       const result = state.result(); onText(result.text); return result;
     }
     if (!response.body) throw new Error('网关未提供可读取的流式响应');
